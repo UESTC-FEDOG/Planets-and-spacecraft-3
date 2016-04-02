@@ -1,1 +1,4 @@
-[任务二十六](http://ife.baidu.com/task/detail?taskId=26)
+问题：
+
++ 目前仍然没有一个类对全局信息具有掌控能力（所有类都是依赖别的类来寻找自己需要的信息，例如，console类总是通过mediator类来寻找spacecraft类）。
+可能需要考虑添加一个Universe类来负责管理全局的信息

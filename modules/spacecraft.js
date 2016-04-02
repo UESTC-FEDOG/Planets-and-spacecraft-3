@@ -24,6 +24,7 @@
 
     // 飞船构造函数
     Spacecraft = function Spacecraft() {
+        // _config用于类内部使用
         this._config = _.extend({}, defaultConfig);
         this._callbacks = [];
         this.mediators = [];
@@ -39,10 +40,10 @@
         var spacecraft = new Spacecraft(),
             lastConfig = _.defaults(
                 _.pick(config,
-                    ['battery', 'speed', 'universeEl', 'charging', 'mediators']),  // config对象的属性仅限这些（外加一个commands）。charging可以是数字
-                defaultConfig);
+                    ['battery', 'speed', 'universeEl', 'charging', 'mediators']),  // config对象的属性仅限这些。charging可以是数字或布尔值
+                spacecraft._config);
 
-        lastConfig.battery = _.defaults(lastConfig.battery, defaultConfig.battery);
+        lastConfig.battery = _.extend({}, _.defaults(lastConfig.battery, defaultConfig.battery));
 
         spacecraft._config = _.pick(lastConfig, _.keys(defaultConfig));
 
@@ -87,6 +88,7 @@
         
         var charge = function() {
             var leftValue = this.getStatus().battery.leftValue;
+            // 如果马上就要充完
             if (leftValue >= 100 || leftValue + chargingRate >= 100) {
                 clearInterval(charging);
                 this._config.battery.isCharging = false;
@@ -94,10 +96,12 @@
                 console.log('充电完成');
                 return;
             }
-
-            this._config.battery.isCharging = true;
-            console.log('现在电量：',this._config.battery.leftValue += chargingRate);
             
+            // 一次充电
+            this._config.battery.isCharging = true;
+            this._config.battery.leftValue += chargingRate;
+            
+            // 若超过了100则置为100
             if(this._config.battery.leftValue >= 100) 
                 this._config.battery.leftValue = 100;
         };
@@ -126,7 +130,6 @@
                 return;
             } else {
                 this._config.battery.leftValue -= battery.cusumeRate;
-                console.log('电量' + battery.leftValue);
                 return;
             }
         };
@@ -192,11 +195,13 @@
     };
 
     // 让每个Mediator移除自己
+    // 如果飞船没被其它地方引用则会使得垃圾回收机制会起作用
     scpro.destroy = function() {
         _.each(this.mediators, function(mediator) {
             mediator.remove(this);
         }, this);
-
+        
+        
         this._config.isExisting = false;
         return null;
     };
