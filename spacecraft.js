@@ -21,40 +21,49 @@
         _engine: null
 
     };
-    
+
     // 飞船构造函数
     Spacecraft = function Spacecraft() {
         this._config = _.extend({}, defaultConfig);
-        this._events = {};
+        this._callbacks = [];
         this.mediators = [];
         this.id = null;
-        this.universe = null;
+        this.universeEl = null;
     };
 
     scpro = Spacecraft.prototype;
 
     // 飞船工厂
     spacecraftFactory = function(config) {
+        config = Object(config);
         var spacecraft = new Spacecraft(),
             lastConfig = _.defaults(
-                _.pick(Object(config), ['battery', 'speed', 'universe', 'charging', 'mediators']),  // config对象的属性仅限这些。charging可以是数字
+                _.pick(config,
+                    ['battery', 'speed', 'universeEl', 'charging', 'mediators']),  // config对象的属性仅限这些（外加一个commands）。charging可以是数字
                 defaultConfig);
 
         lastConfig.battery = _.defaults(lastConfig.battery, defaultConfig.battery);
 
         spacecraft._config = _.pick(lastConfig, _.keys(defaultConfig));
 
-        spacecraft.universe = _.isElement(lastConfig.universe) ? lastConfig.universe : null;
+        spacecraft.universeEl = _.isElement(lastConfig.universeEl) ? lastConfig.universeEl : null;
 
         // 获得一个唯一ID
-        spacecraft.id = _.uniqueId();
+        spacecraft.id = Number(_.uniqueId());
 
         // 连上mediators
         spacecraft.connectToMediators(lastConfig.mediators);
 
-        // 绑定对自毁命令的响应
-        spacecraft.oncommanded('destroy', function() {
-            this.destroy();
+        // 使得可以Madiator的广播来调用该飞船的方法
+        spacecraft.oncommandReceived(function(commandObj) {
+            if(_.isFunction(this[commandObj.command])) {
+                var param;
+                
+                if(!_.isArray(commandObj.param)) param = [commandObj.param];
+                else param = commandObj.param;
+                
+                this[commandObj.command].apply(this,param);
+            }
         });
 
         // 有需要的话，开始就充电
@@ -74,16 +83,23 @@
             chargingRate = this._config.battery.chargingRate;
         }
 
+        console.log('开始充电');
+        
         var charge = function() {
-            if (this.getStatus().battery.leftValue >= 100) {
+            var leftValue = this.getStatus().battery.leftValue;
+            if (leftValue >= 100 || leftValue + chargingRate >= 100) {
                 clearInterval(charging);
                 this._config.battery.isCharging = false;
+                this._config.battery.leftValue = 100;
                 console.log('充电完成');
                 return;
             }
 
             this._config.battery.isCharging = true;
-            this._config.battery.leftValue += chargingRate;
+            console.log('现在电量：',this._config.battery.leftValue += chargingRate);
+            
+            if(this._config.battery.leftValue >= 100) 
+                this._config.battery.leftValue = 100;
         };
 
         var charging = setInterval(charge.bind(this), 1000);
@@ -94,6 +110,7 @@
     //飞船启动。接收一个飞行速度speed作为参数
     scpro.start = function(speed, charging) {
         if (this.getStatus().battery.leftValue <= 0) return false;
+        if (this.getStatus().isNavigating) return false;
 
         this._config.isNavigating = true;
         this._config.speed = _.isNumber(speed) && speed > 0 ? speed : this._config.speed;
@@ -150,23 +167,17 @@
         return this;
     };
 
-    // 事件订阅。this指向飞船实例
-    scpro.on = function(event, callback) {
-        var eventsList = this._events;
 
-        if (eventsList[event]) {
-            eventsList[event].push(callback.bind(this));
-        } else {
-            (eventsList[event] = []).push(callback.bind(this));
-        }
-
+    // 添加收到任何指令后的回调
+    scpro.addListener = function(callback) {
+        this._callbacks.push(callback.bind(this));
         return this;
     };
-
-    // 快捷方式。添加收到针对自己的指令后的回调
-    scpro.oncommanded = function(command, callback) {
-        this.on('command', function(command) {
-            if (command.id === this.id) callback.call(this, command.command);
+    
+    // 添加收到给该飞船的指令后的回调
+    scpro.oncommandReceived = function(callback) {
+        this.addListener(function(commandObj) {
+            if(commandObj.id === this.id) callback.call(this, _.omit(commandObj, 'id'));
         });
     };
 
@@ -180,7 +191,7 @@
         }).value();
     };
 
-    // 让指挥中心移除自己
+    // 让每个Mediator移除自己
     scpro.destroy = function() {
         _.each(this.mediators, function(mediator) {
             mediator.remove(this);
@@ -194,3 +205,4 @@
     window.Spacecraft = Spacecraft;
 
 } (_));
+

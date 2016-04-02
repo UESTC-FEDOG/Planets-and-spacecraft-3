@@ -23,15 +23,22 @@
     };
 
     // 向所有监听者广播一个事件，回调函数会收到一个命令对象
+    // 命令对象形如{
+    //    id: 1,
+    //    command: "gogogo",
+    //    param: ['fast', 'east'] (可以是数组或非数组)
+    // }
     // 时延1s，丢包率30%（均为硬编码）
-    medpro.broadcast = function(type, command) {
+    medpro.broadcast = function(commandObj) {
         this.receviers.forEach(function(recevier) {
-            if(!recevier._events[type]) return;
             // 模拟丢包
-            if(_.random(9) < 3) return;
+            if(_.random(9) < 3) {
+                console.log('给' + recevier.id + '的命令丢包了');
+                return;
+            }
             
-            recevier._events[type].forEach(function(callback) {
-                setTimeout(callback.bind(null, command), 1000);
+            recevier._callbacks.forEach(function(callback) {
+                setTimeout(callback.bind(null, commandObj), 1000);
             });
         });
         
