@@ -103,8 +103,8 @@
         
             // 找到数值最大的延迟
             delay = _.max(this.spacecraftDOMs, function(dom){
-                return dom.spacecraft.getStatus().delay;
-            }).spacecraft.getStatus().delay;
+                return dom.spacecraft.getStatus().maxDelay;
+            }).spacecraft.getStatus().maxDelay;
 
         // 移除面板
         $(selector, this._rootEle)
@@ -194,14 +194,14 @@
                                 x: planetCo.left + radius, // 圆心的横坐标
                                 y: planetCo.top + radius // 圆心的纵坐标
                             });
-                        }, spacecraftDom.spacecraft.getStatus().delay);
+                        }, spacecraftDom.spacecraft.getStatus().maxDelay);
                         break;
                     case 'stop':
                         setTimeout(function() {
                             if(!spacecraftDom.spacecraft.getStatus().isNavigating) {
                                 spacecraftDom.stop();
                             }
-                        },spacecraftDom.spacecraft.getStatus().delay);
+                        },spacecraftDom.spacecraft.getStatus().maxDelay);
                         break;
                 }
             });

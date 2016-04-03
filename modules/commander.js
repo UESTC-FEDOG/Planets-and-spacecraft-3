@@ -30,10 +30,13 @@
 
         // 工厂制造飞船
         var spacecraft = spacecraftFactory({
-                universe: this.console.universeEl,
                 mediators: this.console.mediators,
-                charging: true,
-                speed: _.random(20, 50)
+                chargeOnStart: true,
+                speed: _.random(20, 50),
+                battery: {
+                    cusumeRate: 5,
+                    chargingRate: 3
+                }
             });
 
         // 控制面板也要发生变动

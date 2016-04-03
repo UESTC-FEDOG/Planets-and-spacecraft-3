@@ -87,12 +87,14 @@
     
     BUS.prototype.broadcast = function(binaryMessage) {
         if(!BUS.isValid(binaryMessage)) throw Error('BUS:指令格式不合法');
-
+        console.log('向全体发送指令：'+ binaryMessage);
+        
         this.receviers.forEach(function send(recevier) {
             // 模拟丢包
             if (_.random(9) < 1) {
                 console.log('给' + recevier.id + '的命令丢包了。重试中');
                 send(recevier);
+                return;
             }
             recevier._callbacks.forEach(function(callback) {
                 setTimeout(callback.bind(null, binaryMessage), BUS.DELAY);
