@@ -1,9 +1,10 @@
-// Commander类可以独立使用而不依赖Console类（尽管这会使它变得没有意义）
+// commander是一个只会用控制台来发号施令的家伙。除了控制台，commander啥也不知道
+// 没有控制台，commander啥也办不成
 (function(_) {
 
     // 指挥官需要一个控制台
     function Commander() {
-        this.knownSpacecraftCount = 0;
+        this.knownSpacecraftCount = 0; // 指挥官以为的现有飞船数
         this.console = null;
     }
 
@@ -32,7 +33,7 @@
                 universe: this.console.universeEl,
                 mediators: this.console.mediators,
                 charging: true,
-                speed: _.random(10, 30)
+                speed: _.random(20, 50)
             });
 
         // 控制面板也要发生变动
@@ -48,7 +49,7 @@
 
     };
     
-    // 指挥官启动、停止、摧毁一个飞船
+    // 指挥官启动、停止、摧毁一个飞船（统统是通过giveCommand方法完成的）
     ['start', 'stop', 'destroy'].forEach(function(method) {
         proto[method + 'Spacecraft'] = function(spacecraftId, param) {
             var commandObj = {
