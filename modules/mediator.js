@@ -3,6 +3,8 @@
         this.receviers = [];
     }
 
+    Mediator.DELAY = 1000;
+    
     var medpro = Mediator.prototype;
 
     medpro.add = function(spacecraft) {
@@ -81,6 +83,8 @@
     BUS.commandCodeList.STOP = 2;
     BUS.commandCodeList.DESTROY = 12;
     
+    BUS.DELAY = 300;
+    
     BUS.prototype.broadcast = function(binaryMessage) {
         if(!BUS.isValid(binaryMessage)) throw Error('BUS:指令格式不合法');
 
@@ -91,7 +95,7 @@
                 send(recevier);
             }
             recevier._callbacks.forEach(function(callback) {
-                setTimeout(callback.bind(null, binaryMessage), 300);
+                setTimeout(callback.bind(null, binaryMessage), BUS.DELAY);
             });
         });
     };

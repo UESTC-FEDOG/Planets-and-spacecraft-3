@@ -16,6 +16,7 @@
         },
         speed: 0,
         isNavigating: false,
+        delay: Infinity,
 
         // 以下是不希望暴露出的飞船状态信息（变量名第一个字符为_）
         _engine: null
@@ -54,7 +55,10 @@
 
         // 连上mediators
         spacecraft.connectToMediators(lastConfig.mediators);
-
+        if(spacecraft.mediators.length > 0) {
+            spacecraft._config.delay = spacecraft.mediators[0].constructor.DELAY;
+        }
+        
         // 使得可以Madiator的广播来调用该飞船的方法
         spacecraft.oncommandReceived(function(commandObj) {
             if (_.isFunction(this[commandObj.command])) {

@@ -55,7 +55,7 @@
         this.universeEl = $universe[0];
         this.planetEl = $planet[0];
         this.mediators = [new BUS()];
-        this.spacecraftDOM = [];
+        this.spacecraftDOMs = [];
 
         var commander = null;
 
@@ -93,26 +93,31 @@
         // 新增飞船DOM
         var spacecraftDom = new spacecraftDOM(this, spacecraftId);
         $(this.universeEl).append(spacecraftDom.$el);
-        this.spacecraftDOM.push(spacecraftDom);
+        this.spacecraftDOMs.push(spacecraftDom);
 
     };
 
     // 移除一个飞船的面板
     ccProto.removeSpacecraft = function(spacecraftId) {
-        var selector = '.a-panel[data-for="' + spacecraftId + '"]';
+        var selector = '.a-panel[data-for="' + spacecraftId + '"]',
+        
+            // 找到数值最大的延迟
+            delay = _.max(this.spacecraftDOMs, function(dom){
+                return dom.spacecraft.getStatus().delay;
+            }).spacecraft.getStatus().delay;
 
         // 移除面板
         $(selector, this._rootEle)
             .remove();
 
-        // 1s后检查是否真的已经自毁。是的话则屏幕上不再显示
+        // 在延时delay后检查是否真的已经自毁。是的话则屏幕上不再显示
         // 否则仍然显示（但无法控制该飞船了）
         setTimeout((function() {
-            this.spacecraftDOM.forEach(function(dom) {
-                if (!dom.spacecraft.getStatus().isExisting)
+            this.spacecraftDOMs.forEach(function(dom) {
+                if (!dom.spacecraft.getStatus().isExisting) 
                     dom.remove();
-            });
-        }).bind(this), 1000);
+            });         // 没有飞船的话根本没有面板，所以不用担心读取到undefined
+        }).bind(this), delay);
 
     };
 
@@ -159,7 +164,7 @@
             $root.on('click', selector, function() {
 
                 var id = Number(this.parentNode.dataset['for']),
-                    spacecraftDom = _.find(that.spacecraftDOM, function(dom) {
+                    spacecraftDom = _.find(that.spacecraftDOMs, function(dom) {
                         return dom.id === id;
                     });
 
@@ -189,14 +194,14 @@
                                 x: planetCo.left + radius, // 圆心的横坐标
                                 y: planetCo.top + radius // 圆心的纵坐标
                             });
-                        }, 1000);
+                        }, spacecraftDom.spacecraft.getStatus().delay);
                         break;
                     case 'stop':
                         setTimeout(function() {
                             if(!spacecraftDom.spacecraft.getStatus().isNavigating) {
                                 spacecraftDom.stop();
                             }
-                        },1000);
+                        },spacecraftDom.spacecraft.getStatus().delay);
                         break;
                 }
             });
