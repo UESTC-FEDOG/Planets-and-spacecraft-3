@@ -57,13 +57,13 @@
 
         // 使得可以Madiator的广播来调用该飞船的方法
         spacecraft.oncommandReceived(function(commandObj) {
-            if(_.isFunction(this[commandObj.command])) {
+            if (_.isFunction(this[commandObj.command])) {
                 var param;
-                
-                if(!_.isArray(commandObj.param)) param = [commandObj.param];
+
+                if (!_.isArray(commandObj.param)) param = [commandObj.param];
                 else param = commandObj.param;
-                
-                this[commandObj.command].apply(this,param);
+
+                this[commandObj.command].apply(this, param);
             }
         });
 
@@ -84,8 +84,8 @@
             chargingRate = this._config.battery.chargingRate;
         }
 
-        console.log('开始充电');
-        
+        console.log(this.id + '号开始充电');
+
         var charge = function() {
             var leftValue = this.getStatus().battery.leftValue;
             // 如果马上就要充完
@@ -93,16 +93,16 @@
                 clearInterval(charging);
                 this._config.battery.isCharging = false;
                 this._config.battery.leftValue = 100;
-                console.log('充电完成');
+                console.log(this.id + '号充电完成');
                 return;
             }
-            
+
             // 一次充电
             this._config.battery.isCharging = true;
             this._config.battery.leftValue += chargingRate;
-            
+
             // 若超过了100则置为100
-            if(this._config.battery.leftValue >= 100) 
+            if (this._config.battery.leftValue >= 100)
                 this._config.battery.leftValue = 100;
         };
 
@@ -135,7 +135,7 @@
         };
         this._config._engine = setInterval(consumeBattery.bind(this), 1000);
 
-        console.log('飞船启动');
+        console.log(this.id + '号飞船启动');
         // 有需要充电的话，开始充电
         if (charging) this.charge(_.isNumber(charging) ? charging : void 0);
 
@@ -147,7 +147,7 @@
         this._config.isNavigating = false;
         // 停止耗电
         clearInterval(this._config._engine);
-        console.log('飞船停止');
+        console.log(this.id + '号飞船停止');
         return this;
     };
 
@@ -156,7 +156,7 @@
         if (!_.isArray(mediators)) mediators = _.toArray(arguments);
 
         if (!mediators.every(function(ele) { return ele instanceof Mediator; })) {
-            console.log('尝试连接但未成功');
+            console.log(this.id + '号飞船尝试连接中介但未成功');
             return this;
         }
 
@@ -166,21 +166,43 @@
             if (!mediator.has(this)) mediator.add(this);
         }, this);
 
-        console.log('成功和所有中介对接');
+        console.log(this.id + '号飞船成功和所有中介对接');
         return this;
     };
 
 
-    // 添加收到任何指令后的回调
+    // 添加收到任何指令后的回调(几乎没什么用，一般用下一个方法)
     scpro.addListener = function(callback) {
-        this._callbacks.push(callback.bind(this));
+        function adapter(binaryMessage) {
+            console.log(this.id + '号飞船开始解析');
+            if (!BUS.isValid) throw Error('接收到的信息格式不对');
+
+            var id = parseInt(binaryMessage.slice(0, 4), 2),
+                command = parseInt(binaryMessage.slice(4), 2);
+
+
+            command = _.findKey(BUS.commandCodeList, function(val) {
+                return val === command;
+            });
+            
+            if(!command) throw Error('飞船解析命令时出错：没有这种命令');
+            
+            return {
+                id: id,
+                command: command.toLowerCase()
+            };
+        }
+
+        this._callbacks.push(_.compose(callback.bind(this), adapter.bind(this)));
         return this;
     };
-    
+
     // 添加收到给该飞船的指令后的回调
     scpro.oncommandReceived = function(callback) {
         this.addListener(function(commandObj) {
-            if(commandObj.id === this.id) callback.call(this, _.omit(commandObj, 'id'));
+            if (commandObj.id === this.id) {
+                callback.call(this, _.omit(commandObj, 'id'));
+            }
         });
     };
 
@@ -200,8 +222,8 @@
         _.each(this.mediators, function(mediator) {
             mediator.remove(this);
         }, this);
-        
-        
+
+
         this._config.isExisting = false;
         return null;
     };

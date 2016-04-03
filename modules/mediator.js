@@ -6,8 +6,8 @@
     var medpro = Mediator.prototype;
 
     medpro.add = function(spacecraft) {
-        if(!(spacecraft instanceof Spacecraft)) throw Error('需要传入一个飞船实例');
-            
+        if (!(spacecraft instanceof Spacecraft)) throw Error('需要传入一个飞船实例');
+
         this.receviers.push(spacecraft);
         return this;
     };
@@ -17,7 +17,7 @@
         var index = _.findIndex(this.receviers, function(recevier) {
             return recevier === spacecraft || recevier.id === spacecraft;
         });
-        
+
         this.receviers.splice(index, 1);
         return this;
     };
@@ -32,16 +32,16 @@
     medpro.broadcast = function(commandObj) {
         this.receviers.forEach(function(recevier) {
             // 模拟丢包
-            if(_.random(9) < 3) {
+            if (_.random(9) < 3) {
                 console.log('给' + recevier.id + '的命令丢包了');
                 return;
             }
-            
+
             recevier._callbacks.forEach(function(callback) {
                 setTimeout(callback.bind(null, commandObj), 1000);
             });
         });
-        
+
         return this;
     };
 
@@ -54,5 +54,48 @@
     };
 
     window.Mediator = Mediator;
+
+    // 继承自Mediator
+    function BUS() {
+        Mediator.apply(this, arguments);
+    }
+
+    BUS.prototype = Object.create(Mediator.prototype, {
+        'constructor': {
+            value: BUS,
+            writable: false
+        }
+    });
+    
+    
+    // 检测一个指令格式是否合法
+    BUS.isValid = function(message) {
+        return _.isString(message) && message.length === 8 && _.every(message, function(char) {
+                var num = Number(char);
+                return num === 0 || num === 1;
+            });
+    };
+    
+    BUS.commandCodeList ={};
+    BUS.commandCodeList.START = 1;
+    BUS.commandCodeList.STOP = 2;
+    BUS.commandCodeList.DESTROY = 12;
+    
+    BUS.prototype.broadcast = function(binaryMessage) {
+        if(!BUS.isValid(binaryMessage)) throw Error('BUS:指令格式不合法');
+
+        this.receviers.forEach(function send(recevier) {
+            // 模拟丢包
+            if (_.random(9) < 1) {
+                console.log('给' + recevier.id + '的命令丢包了。重试中');
+                send(recevier);
+            }
+            recevier._callbacks.forEach(function(callback) {
+                setTimeout(callback.bind(null, binaryMessage), 300);
+            });
+        });
+    };
+    
+    window.BUS = BUS;
 
 } (_));

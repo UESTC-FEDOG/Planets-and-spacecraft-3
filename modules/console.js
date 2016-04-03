@@ -54,7 +54,7 @@
         this._rootEle = rootEle;
         this.universeEl = $universe[0];
         this.planetEl = $planet[0];
-        this.mediators = [new Mediator()];
+        this.mediators = [new BUS()];
         this.spacecraftDOM = [];
 
         var commander = null;
@@ -116,10 +116,35 @@
 
     };
 
-    // 用mediator发送广播
+    // 用BUS发送广播
     ccProto.broadcast = function(commandObj) {
-        this.mediators.forEach(function(mediator) {
-            mediator.broadcast(commandObj);
+        // Adapter函数负责将一般的指令格式译成二进制格式字符串
+        function adapter(commandObj) {
+            var command = commandObj.command,
+                id = commandObj.id;
+            
+            if(id > 16) throw Error('飞船编号大于16无法传送');
+            if(!BUS.commandCodeList[command.toUpperCase()]) throw Error('没有这种指令:' + command);
+            
+            id = id.toString(2);
+            command = BUS.commandCodeList[command.toUpperCase()].toString(2);
+                
+            function padStartWith0(str, length) {
+                while(str.length < length) {
+                    str = '0' + str;
+                }
+                return str;
+            }    
+
+            return padStartWith0(id, 4) + padStartWith0(command, 4);
+            
+            
+        }
+        
+        var binaryMessage = adapter(commandObj);
+        
+        this.mediators.forEach(function(bus) {
+            bus.broadcast(binaryMessage);
         });
     };
 
@@ -253,7 +278,6 @@
                 nowY = this.$el.position().top;
 
             // 发射至起点
-            console.log(originPoint);
             this.$el
                 .css({
                     position: 'absolute',
