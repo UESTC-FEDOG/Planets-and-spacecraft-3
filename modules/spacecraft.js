@@ -1,72 +1,76 @@
 (function(_) {
     var spacecraftFactory,
-        defaultConfig,
         Spacecraft,
-        scpro;
+        scpro,
+        // 默认配置对象
+        defaultConfig = {
+            // 以下是getStatus方法暴露出的信息
+            isExisting: true,
+            battery: {
+                leftValue: 100,
+                cusumeRate: 0,
+                chargingRate: 0,
+                isCharging: false
+            },
+            speed: 0,
+            isNavigating: false,
+            // 取决于一个飞船实例接入的中介对象的最大时延
+            maxDelay: Infinity,
 
-
-    // 默认配置对象
-    defaultConfig = {
-        isExisting: true,
-        battery: {
-            leftValue: 100,
-            cusumeRate: 0,
-            chargingRate: 0,
-            isCharging: false
+            // 以下是不希望getStatus方法暴露出的飞船状态信息（变量名第一个字符为_）
+            _engine: null
         },
-        speed: 0,
-        isNavigating: false,
-        // 取决于一个飞船实例接入的中介对象的最大时延
-        maxDelay: Infinity,
-
-        // 以下是不希望暴露出的飞船状态信息（变量名第一个字符为_）
-        _engine: null
-
-    };
+        // 可以供外界工厂配置的属性
+        configableProp = ['speed',  'mediators', 'chargingRate', 'cusumeRate'];
 
     // 飞船构造函数
     Spacecraft = function Spacecraft() {
         // _config用于类内部使用
-        this._config = _.extend({}, defaultConfig);
+        this._config = _.clone(defaultConfig);
+        // 确保每个实例的battery对象引用的不是同一个
+        this._config.battery = _.clone(defaultConfig.battery);
         this._callbacks = [];
         this.mediators = [];
         this.id = null;
     };
-
+   
     scpro = Spacecraft.prototype;
 
     // 飞船工厂。配置对象如下：
     // {
-    //      bettery: {
-    //          cusumeRate: 数字
-    //          chargingRate: 数字
-    //      },
-    //      chargeOnStart: 布尔值
+    //      cusumeRate: 数字
+    //      chargingRate: 数字
     //      speed: 数字,
     //      mediators: 数组或多个对象。数组成员或多个对象都必须是Mediator或其派生类 
     // }
-    
+
     spacecraftFactory = function(config) {
         config = Object(config);
-        var spacecraft = new Spacecraft(),
-            lastConfig = _.defaults(
-                _.pick(config,
-                    ['battery', 'speed', 'chargeOnStart', 'mediators']),  // config对象的属性仅限这些。charging可以是数字或布尔值
-                spacecraft._config);
+        var spacecraft = new Spacecraft();
+        
+        spacecraft._config = _.chain(config)
+                                .pick(_.keys(defaultConfig))
+                                .defaults(spacecraft._config)
+                                .value();
+        
 
-        lastConfig.battery = _.defaults(lastConfig.battery, defaultConfig.battery);
-
-        spacecraft._config = _.pick(lastConfig, _.keys(defaultConfig));
+        spacecraft._config.battery = _.chain(config)
+                                        .pick(['chargingRate', 'cusumeRate'])
+                                        .defaults(spacecraft._config.battery)
+                                        .value();
 
         // 获得一个唯一ID
         spacecraft.id = Number(_.uniqueId());
 
         // 连上mediators
-        spacecraft.connectToMediators(lastConfig.mediators);
-        if(spacecraft.mediators.length > 0) {
-            spacecraft._config.maxDelay = spacecraft.mediators[0].constructor.DELAY;
+        spacecraft.connectToMediators(config.mediators);
+        if (spacecraft.mediators.length > 0) {
+            spacecraft._config.maxDelay = _.max(spacecraft.mediators, function(mediator) {
+                return mediator.constructor.DELAY;
+            }).constructor.DELAY;
+            
         }
-        
+
         // 使得可以Madiator的广播来调用该飞船的方法
         spacecraft.oncommandReceived(function(commandObj) {
             if (_.isFunction(this[commandObj.command])) {
@@ -80,8 +84,6 @@
         });
 
         // 有需要的话，这艘飞船每次启动都会开始充电
-        if (lastConfig.chargeOnStart === true)
-            spacecraft.start = _.partial(spacecraft.start, _, true);
 
         return spacecraft;
     };
@@ -90,7 +92,7 @@
     scpro.charge = function() {
         if (this._config.battery.isCharging) return this;
         var chargingRate = this._config.battery.chargingRate;
-        console.log(this.id + '号开始充电');
+        console.log(this.id + '号开始充电，充电速率' + chargingRate);
 
         var charge = function() {
             var leftValue = this.getStatus().battery.leftValue;
@@ -118,7 +120,7 @@
 
 
     //飞船启动。接收一个飞行速度speed作为参数
-    scpro.start = function(speed, isCharging) {
+    scpro.start = function(speed) {
         if (this.getStatus().battery.leftValue <= 0) return false;
         if (this.getStatus().isNavigating) return false;
 
@@ -141,9 +143,9 @@
         };
         this._config._engine = setInterval(consumeBattery.bind(this), 1000);
 
-        console.log(this.id + '号飞船启动');
-        // 有需要充电的话，开始充电
-        if (isCharging) this.charge();
+        console.log(this.id + '号飞船启动，速率' + this._config.speed);
+        // 一启动就开始充电
+        this.charge();
 
         return this;
     };
@@ -161,13 +163,13 @@
     scpro.connectToMediators = function(mediators) {
         if (!_.isArray(mediators)) mediators = _.toArray(arguments);
 
-           
+
 
         _.each(mediators, function(mediator) {
             if (!(mediator instanceof Mediator)) {
                 throw Error(this.id + '号飞船尝试连接中介但未成功：' + mediator + '不是一个中介对象');
             }
-            
+
             if (!mediator.has(this)) mediator.add(this);
         }, this);
 
@@ -190,9 +192,9 @@
             command = _.findKey(BUS.commandCodeList, function(val) {
                 return val === command;
             });
-            
-            if(!command) throw Error('飞船解析命令时出错：没有这种命令');
-            
+
+            if (!command) throw Error('飞船解析命令时出错：没有这种命令');
+
             return {
                 id: id,
                 command: command.toLowerCase()
@@ -219,7 +221,7 @@
             return key[0] !== '_';
         }).mapObject(function(val, key) {
             // 对于值是引用对象的属性，复制一份
-            if (_.isObject(val)) return _.extend({}, val);
+            if (_.isObject(val)) return _.clone(val);
             return val;
         }).value();
     };

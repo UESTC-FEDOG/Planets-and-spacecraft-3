@@ -3,16 +3,53 @@
 (function(_, $) {
 
     _.templateSettings = {
-        interpolate: /\{\{(.+?)\}\}/g
+        interpolate: /\{\{(.+?)\}\}/g,
+        evaluate:  /\{%([\s\S]+?)%\}/g
     };
 
-    var panelTemplate;
+    var panelTemplate,
+        engineTypeTemplate,
+        energyTypeTemplate;
 
+    // 模板写在HTML文件里了，因此需要异步生成模板函数
     $(function() {
         panelTemplate = _.template($('#spacecraft-panel-template').html());
+        engienTypeTemplate = _.template($('#engine-type').html());
+        energyTypeTemplate = _.template($('#energy-type').html());
     });
 
-
+    var engineType = [
+        {
+            name: '前进号',
+            speed: 30,
+            cusumeRate: 5
+        },
+        {
+            name: '奔腾号',
+            speed: 50,
+            cusumeRate: 7
+        },
+        {
+            name: '超越号',
+            speed: 80,
+            cusumeRate: 9
+        }
+    ],
+    
+       energyType = [
+           {
+               name: '劲量型',
+               chargingRate: 2
+           },
+           {
+               name: '光能型',
+               chargingRate: 3
+           },
+           {
+               name: '永久型',
+               chargingRate: 4
+           }
+       ];
     // 获得一个控制台实例，并在DOM上初始化。HTML结构如下：
     // rootEle
     //    div.universe
@@ -41,19 +78,22 @@
             .append($planet)
             .appendTo(rootEle)
             .after($panel);
-
+            
         $panel
             .append($('<div>').addClass('spacecrafts-panel'))
             .append(
-            $('<div>')
+            $('<form>')
                 .addClass('universe-panel')
-                .append('<button data-type="dispatch">新飞船起飞</button>')
+                .append(engienTypeTemplate({types: engineType}))
+                .append(energyTypeTemplate({types: energyType}))
+                .append('<button data-type="dispatch" type="button">新飞船起飞</button>')
             );
 
         // 挂载实例属性
         this._rootEle = rootEle;
         this.universeEl = $universe[0];
         this.planetEl = $planet[0];
+        // 实例化时直接先附送一个通信工具。一个控制台可以有多个通信工具（不过addMediator接口还没写）
         this.mediators = [new BUS()];
         this.spacecraftDOMs = [];
 
@@ -101,10 +141,12 @@
     ccProto.removeSpacecraft = function(spacecraftId) {
         var selector = '.a-panel[data-for="' + spacecraftId + '"]',
         
-            // 找到数值最大的延迟
-            delay = _.max(this.spacecraftDOMs, function(dom){
-                return dom.spacecraft.getStatus().maxDelay;
-            }).spacecraft.getStatus().maxDelay;
+            spacecraftDom = _.find(this.spacecraftDOMs, function (dom) {
+                return dom.spacecraft.id === spacecraftId;
+            }),
+            spacecraft = spacecraftDom.spacecraft,
+            delay = spacecraft.getStatus().maxDelay;
+            
 
         // 移除面板
         $(selector, this._rootEle)
@@ -113,11 +155,8 @@
         // 在延时delay后检查是否真的已经自毁。是的话则屏幕上不再显示
         // 否则仍然显示（但无法控制该飞船了）
         setTimeout((function() {
-            this.spacecraftDOMs.forEach(function(dom) {
-                if (!dom.spacecraft.getStatus().isExisting) 
-                    dom.remove();
-            });         // 没有飞船的话根本没有面板，所以不用担心读取到undefined
-        }).bind(this), delay);
+            if (!spacecraft.getStatus().isExisting) spacecraftDom.remove();
+        }), delay);
 
     };
 
@@ -167,9 +206,20 @@
                     spacecraftDom = _.find(that.spacecraftDOMs, function(dom) {
                         return dom.id === id;
                     });
-
-                // 指挥官下达相应命令
-                that.commander[method + 'Spacecraft'](id);
+                    
+                // todo: 此处需要重构
+                if(method === 'dispatch') {
+                    var engineConfig = $('[name="engine-type"]:checked', that._rootEle).data(),
+                        energyConfig = $('[name="energy-type"]:checked', that._rootEle).data(),
+                        finalConfig = _.extend({
+                            mediators: that.mediators
+                        } ,engineConfig, energyConfig);
+                     
+                    that.commander.dispatchSpacecraft(finalConfig);
+                } else {
+                    // 指挥官下达相应命令
+                    that.commander[method + 'Spacecraft'](id);
+                }
 
                 // 面板的相应反应
                 switch (method) {
@@ -275,6 +325,9 @@
             } else {
                 status = this._movingStatus;
             }
+            
+            // 速度为0则不再做动画了
+            if(this._movingStatus.speed === 0) return;
 
             // 确定圆周运动的起点
             var originPoint = getCoordinate(status),

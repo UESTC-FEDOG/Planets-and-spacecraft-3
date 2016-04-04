@@ -50,11 +50,31 @@
             <button data-type="destroy">销毁</button>
         </div>
     </template>
+    <template id="engine-type">
+        <div>
+            动力系统选择： {% types.forEach(function(type){ %}
+            <label>
+                <input type="radio" name="engine-type" data-speed="{{ type.speed }}" data-cusume-rate="{{ type.cusumeRate }}"> 
+                {{ type.name }}(速率{{ type.speed }}px/s，能耗{{ type.cusumeRate }}%/s)
+            </label>
+            {% }) %}
+        </div>
+    </template>
+    <template id="energy-type">
+        <div>
+            能源系统选择： {% types.forEach(function(type){ %}
+            <label>
+                <input type="radio" name="energy-type" data-charging-rate="{{ type.chargingRate }}">
+                 {{ type.name }}(补充能源速度{{ type.chargingRate }}%/s)
+            </label>
+            {% }) %}
+        </div>
+    </template>
 </head>
 
 <body>
     <div id="canvas">
-        
+
     </div>
     <!--<div id="universe">
         <div class="planet"></div>
@@ -63,10 +83,11 @@
 
     </div>-->
     <script>
-        var consoleA = new commanderConsole($('#canvas')[0]),
-            commander = new Commander();
-            
-        commander.getConsole(consoleA);
+        $(function() {
+            var consoleA = new commanderConsole($('#canvas')[0]),
+                commander = new Commander();
+            commander.getConsole(consoleA);
+        });
     </script>
 </body>
 

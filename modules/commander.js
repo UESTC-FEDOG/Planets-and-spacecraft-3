@@ -20,7 +20,7 @@
     };
 
     // 派出飞船
-    proto.dispatchSpacecraft = function() {
+    proto.dispatchSpacecraft = function(config) {
         if (this.knownSpacecraftCount >= 4) {
             console.log('指挥官说“飞船数量太多了！”');
             return;
@@ -29,15 +29,7 @@
         this.knownSpacecraftCount++;
 
         // 工厂制造飞船
-        var spacecraft = spacecraftFactory({
-                mediators: this.console.mediators,
-                chargeOnStart: true,
-                speed: _.random(20, 50),
-                battery: {
-                    cusumeRate: 5,
-                    chargingRate: 3
-                }
-            });
+        var spacecraft = spacecraftFactory(config);
 
         // 控制面板也要发生变动
         this.console.addSpacecraft(spacecraft.id);
