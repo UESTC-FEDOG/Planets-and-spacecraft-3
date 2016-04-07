@@ -42,6 +42,16 @@
             padding: 0 3px;
             margin-right: 5px;
         }
+        
+        #canvas {
+            position: relative;
+        }
+        
+        table {
+            position: absolute;
+            right: 0;
+            top: 0;
+        }
     </style>
     <template id="spacecraft-panel-template">
         <div class="a-panel" data-for="{{id}}">对{{id}}号飞船下指令：
@@ -69,6 +79,15 @@
             </label>
             {% }) %}
         </div>
+    </template>
+    <template id="table-row-template">
+        <tr>
+            <td>{{status.id}}</td>
+            <td>{{type.engine}}</td>
+            <td>{{type.energy}}</td>
+            <td>{{status.status}}</td>
+            <td>{{status.battery}}</td>
+        </tr>
     </template>
 </head>
 

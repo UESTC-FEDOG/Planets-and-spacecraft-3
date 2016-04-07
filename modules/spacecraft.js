@@ -21,7 +21,7 @@
             _engine: null
         },
         // 可以供外界工厂配置的属性
-        configableProp = ['speed',  'mediators', 'chargingRate', 'cusumeRate'];
+        configableProp = ['speed', 'mediators', 'chargingRate', 'cusumeRate'];
 
     // 飞船构造函数
     Spacecraft = function Spacecraft() {
@@ -33,7 +33,55 @@
         this.mediators = [];
         this.id = null;
     };
-   
+
+    // 命令转码器
+    Spacecraft.commandAdapter = function(binaryMessage) {
+        console.log('飞船开始解析');
+        if (!BUS.isValidCommand(binaryMessage)) throw Error('接收到的信息格式不对');
+
+        var id = parseInt(binaryMessage.slice(0, 4), 2),
+            command = parseInt(binaryMessage.slice(4), 2);
+
+
+        command = _.findKey(BUS.commandCodeList, function(val) {
+            return val === command;
+        });
+
+        if (!command) throw Error('飞船解析命令时出错：没有这种命令');
+
+        return {
+            id: id,
+            command: command.toLowerCase()
+        };
+    };
+
+    // 状况转码器
+    Spacecraft.statusCodeAdapter = function(id, statusObj) {
+        function padStartWith0(str, length) {
+            str = str.toString();
+            while (str.length < length) {
+                str = '0' + str;
+            }
+            return str;
+        }
+        
+        var idStr = padStartWith0(id.toString(2), 4),
+            statusStr;
+            
+        switch(true) {
+            case !statusObj.isExisting:
+                statusStr = '1100';
+                break;
+            case statusObj.isNavigating:
+                statusStr = '0001';
+                break;
+            default:
+                statusStr = '0010';
+        }
+        
+        return idStr + statusStr + padStartWith0(statusObj.battery.leftValue.toString(2), 8);
+    };
+
     scpro = Spacecraft.prototype;
 
     // 飞船工厂。配置对象如下：
@@ -47,28 +95,28 @@
     spacecraftFactory = function(config) {
         config = Object(config);
         var spacecraft = new Spacecraft();
-        
+
         spacecraft._config = _.chain(config)
-                                .pick(_.keys(defaultConfig))
-                                .defaults(spacecraft._config)
-                                .value();
-        
+            .pick(_.keys(defaultConfig))
+            .defaults(spacecraft._config)
+            .value();
+
 
         spacecraft._config.battery = _.chain(config)
-                                        .pick(['chargingRate', 'cusumeRate'])
-                                        .defaults(spacecraft._config.battery)
-                                        .value();
+            .pick(['chargingRate', 'cusumeRate'])
+            .defaults(spacecraft._config.battery)
+            .value();
 
         // 获得一个唯一ID
         spacecraft.id = Number(_.uniqueId());
 
         // 连上mediators
-        spacecraft.connectToMediators(config.mediators);
+        spacecraft.connectToMediators(config.mediator);
         if (spacecraft.mediators.length > 0) {
             spacecraft._config.maxDelay = _.max(spacecraft.mediators, function(mediator) {
                 return mediator.constructor.DELAY;
             }).constructor.DELAY;
-            
+
         }
 
         // 使得可以Madiator的广播来调用该飞船的方法
@@ -83,7 +131,6 @@
             }
         });
 
-        // 有需要的话，这艘飞船每次启动都会开始充电
 
         return spacecraft;
     };
@@ -118,6 +165,15 @@
         return this;
     };
 
+    scpro.report = function() {
+        var that = this;
+        setInterval(function() {
+            that.mediators.forEach(function(mediator) {
+                mediator.broadcast(Spacecraft.statusCodeAdapter(that.id, that.getStatus()));
+            });
+        }, 1000);
+    };
+
 
     //飞船启动。接收一个飞行速度speed作为参数
     scpro.start = function(speed) {
@@ -144,8 +200,9 @@
         this._config._engine = setInterval(consumeBattery.bind(this), 1000);
 
         console.log(this.id + '号飞船启动，速率' + this._config.speed);
-        // 一启动就开始充电
+        // 一启动就开始充电与报告
         this.charge();
+        this.report();
 
         return this;
     };
@@ -163,8 +220,6 @@
     scpro.connectToMediators = function(mediators) {
         if (!_.isArray(mediators)) mediators = _.toArray(arguments);
 
-
-
         _.each(mediators, function(mediator) {
             if (!(mediator instanceof Mediator)) {
                 throw Error(this.id + '号飞船尝试连接中介但未成功：' + mediator + '不是一个中介对象');
@@ -181,27 +236,7 @@
 
     // 添加收到任何指令后的回调(几乎没什么用，一般用下一个方法)
     scpro.addListener = function(callback) {
-        function adapter(binaryMessage) {
-            console.log(this.id + '号飞船开始解析');
-            if (!BUS.isValid) throw Error('接收到的信息格式不对');
-
-            var id = parseInt(binaryMessage.slice(0, 4), 2),
-                command = parseInt(binaryMessage.slice(4), 2);
-
-
-            command = _.findKey(BUS.commandCodeList, function(val) {
-                return val === command;
-            });
-
-            if (!command) throw Error('飞船解析命令时出错：没有这种命令');
-
-            return {
-                id: id,
-                command: command.toLowerCase()
-            };
-        }
-
-        this._callbacks.push(_.compose(callback.bind(this), adapter.bind(this)));
+        this._callbacks.push(_.compose(callback.bind(this), Spacecraft.commandAdapter.bind(this)));
         return this;
     };
 

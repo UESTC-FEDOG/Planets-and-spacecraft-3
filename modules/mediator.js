@@ -4,7 +4,7 @@
     }
 
     Mediator.DELAY = 1000;
-    
+
     var medpro = Mediator.prototype;
 
     medpro.add = function(spacecraft) {
@@ -58,8 +58,9 @@
     window.Mediator = Mediator;
 
     // 继承自Mediator
-    function BUS() {
+    function BUS(console) {
         Mediator.apply(this, arguments);
+        this.console = console;
     }
 
     BUS.prototype = Object.create(Mediator.prototype, {
@@ -68,40 +69,104 @@
             writable: false
         }
     });
-    
-    
+
+
     // 检测一个指令格式是否合法
-    BUS.isValid = function(message) {
-        return _.isString(message) && message.length === 8 && _.every(message, function(char) {
-                var num = Number(char);
-                return num === 0 || num === 1;
-            });
+    BUS.isValidCommand = function(message) {
+        return /^[01]{8}$/.test(message);
+    };
+
+    BUS.isValidStatusCode = function(statusCode) {
+        return /^[01]{16}$/.test(statusCode);
+    };
+
+    // 命令转码器
+    BUS.commandAdapter = function (commandObj) {
+        var command = commandObj.command,
+            id = commandObj.id;
+
+        if (id > 16) throw Error('飞船编号大于16无法传送');
+        if (!BUS.commandCodeList[command.toUpperCase()]) throw Error('没有这种指令:' + command);
+
+        id = id.toString(2);
+        command = BUS.commandCodeList[command.toUpperCase()].toString(2);
+
+        function padStartWith0(str, length) {
+            while (str.length < length) {
+                str = '0' + str;
+            }
+            return str;
+        }
+
+        return padStartWith0(id, 4) + padStartWith0(command, 4);
+
+
     };
     
-    BUS.commandCodeList ={};
+    BUS.statusCodeAdapter = function(binaryMessage) {
+        var id = binaryMessage.slice(0, 4),
+            battery = parseInt(binaryMessage.slice(-8), 2),
+            status;
+            
+            
+        switch(binaryMessage.substr(4,4)) {
+            case '0010':
+                status = '停止中';
+                break;
+            case '0001':
+                status = '飞行中';
+                break;
+            case '1100':
+                status = '摧毁中';
+                break;
+            default:
+                status = '未知状态';
+        }
+        
+        return {
+            id: id,
+            battery: battery,
+            status: status
+        };
+    };
+    
+
+    BUS.commandCodeList = {};
     BUS.commandCodeList.START = 1;
     BUS.commandCodeList.STOP = 2;
     BUS.commandCodeList.DESTROY = 12;
-    
+
     BUS.DELAY = 300;
-    
+
+    // 用于BUS与飞船的通信
     BUS.prototype.broadcast = function(binaryMessage) {
-        if(!BUS.isValid(binaryMessage)) throw Error('BUS:指令格式不合法');
-        console.log('向全体发送指令：'+ binaryMessage);
-        
-        this.receviers.forEach(function send(recevier) {
-            // 模拟丢包
-            if (_.random(9) < 1) {
-                console.log('给' + recevier.id + '的命令丢包了。重试中');
-                send(recevier);
-                return;
-            }
-            recevier._callbacks.forEach(function(callback) {
-                setTimeout(callback.bind(null, binaryMessage), BUS.DELAY);
+        console.log(binaryMessage);
+        if (BUS.isValidCommand(binaryMessage)) {
+            console.log('向全体发送指令：' + binaryMessage);
+
+            this.receviers.forEach(function send(recevier) {
+                // 模拟丢包
+                if (_.random(9) < 1) {
+                    console.log('给' + recevier.id + '的命令丢包了。重试中');
+                    send(recevier);
+                    return;
+                }
+                recevier._callbacks.forEach(function(callback) {
+                    setTimeout(callback.bind(null, binaryMessage), BUS.DELAY);
+                });
             });
-        });
+            
+        } else if(BUS.isValidStatusCode(binaryMessage)) {
+            console.log('收到报告');
+            this.console.updateStatus(BUS.statusCodeAdapter(binaryMessage));
+            
+        } else {
+            throw Error('命令格式错误');
+        }
     };
-    
+
+
+
     window.BUS = BUS;
 
 } (_));

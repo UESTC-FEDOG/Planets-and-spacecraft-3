@@ -16,6 +16,7 @@
         panelTemplate = _.template($('#spacecraft-panel-template').html());
         engienTypeTemplate = _.template($('#engine-type').html());
         energyTypeTemplate = _.template($('#energy-type').html());
+        tableRowTemplate = _.template($('#table-row-template').html());
     });
 
     var engineType = [
@@ -88,13 +89,16 @@
                 .append(energyTypeTemplate({types: energyType}))
                 .append('<button data-type="dispatch" type="button">新飞船起飞</button>')
             );
+            
+        $(rootEle)
+            .append($('<table>').addClass('status-table'));
 
         // 挂载实例属性
         this._rootEle = rootEle;
         this.universeEl = $universe[0];
         this.planetEl = $planet[0];
         // 实例化时直接先附送一个通信工具。一个控制台可以有多个通信工具（不过addMediator接口还没写）
-        this.mediators = [new BUS()];
+        this.mediator = new BUS(this);
         this.spacecraftDOMs = [];
 
         var commander = null;
@@ -136,14 +140,17 @@
         this.spacecraftDOMs.push(spacecraftDom);
 
     };
-
+    
+    ccProto.findSpacecraftDom = function(id) {
+        return _.find(this.spacecraftDOMs, function (dom) {
+                return dom.spacecraft.id === id;
+            });
+    };
     // 移除一个飞船的面板
     ccProto.removeSpacecraft = function(spacecraftId) {
         var selector = '.a-panel[data-for="' + spacecraftId + '"]',
         
-            spacecraftDom = _.find(this.spacecraftDOMs, function (dom) {
-                return dom.spacecraft.id === spacecraftId;
-            }),
+            spacecraftDom = this.findSpacecraftDom(spacecraftId),
             spacecraft = spacecraftDom.spacecraft,
             delay = spacecraft.getStatus().maxDelay;
             
@@ -163,33 +170,40 @@
     // 用BUS发送广播
     ccProto.broadcast = function(commandObj) {
         // Adapter函数负责将一般的指令格式译成二进制格式字符串
-        function adapter(commandObj) {
-            var command = commandObj.command,
-                id = commandObj.id;
-            
-            if(id > 16) throw Error('飞船编号大于16无法传送');
-            if(!BUS.commandCodeList[command.toUpperCase()]) throw Error('没有这种指令:' + command);
-            
-            id = id.toString(2);
-            command = BUS.commandCodeList[command.toUpperCase()].toString(2);
-                
-            function padStartWith0(str, length) {
-                while(str.length < length) {
-                    str = '0' + str;
-                }
-                return str;
-            }    
 
-            return padStartWith0(id, 4) + padStartWith0(command, 4);
+        var binaryMessage = BUS.commandAdapter(commandObj);
+        
+        this.mediator.broadcast(binaryMessage);
+    };
+    
+    ccProto.updateStatus = function(statusObj) {
+        var id = parseInt(statusObj.id, 2);
+        console.log(id);
+        var row = $('.status-table-row[data-id="' + id + '"]', this._rootEle);
+        
+        if(row.length === 0 ) {
+            var type = {},
+                battery = this.findSpacecraftDom(id).spacecraft.getStatus().battery;
+                
+            type.energy = _.find(energyType, function(obj) {
+                return obj.chargingRate === battery.chargingRate;
+            }).name;
+            
+            type.engine = _.find(engineType, function(obj) {
+                return obj.cusumeRate === battery.cusumeRate;
+            }).name;
             
             
+            $('.status-table', this._rootEle)
+                .append($(tableRowTemplate({
+                    status:_.defaults({id: id},statusObj),
+                    type: type
+                })).attr('data-id', id).addClass('status-table-row'));
+            
+        } else {
+            row.children().eq(3).text(statusObj.status);
+            row.children().eq(4).text(statusObj.battery + '%');
         }
-        
-        var binaryMessage = adapter(commandObj);
-        
-        this.mediators.forEach(function(bus) {
-            bus.broadcast(binaryMessage);
-        });
     };
 
     // 为按钮绑定事件（当指挥官就任时）
@@ -212,7 +226,7 @@
                     var engineConfig = $('[name="engine-type"]:checked', that._rootEle).data(),
                         energyConfig = $('[name="energy-type"]:checked', that._rootEle).data(),
                         finalConfig = _.extend({
-                            mediators: that.mediators
+                            mediator: that.mediator
                         } ,engineConfig, energyConfig);
                      
                     that.commander.dispatchSpacecraft(finalConfig);
@@ -265,21 +279,17 @@
     function spacecraftDOM(console, spacecraftId) {
 
 
-        this.spacecraft = null;
         this.id = spacecraftId;
         this.console = console;
         this.hasLaunched = false;
 
         // 找到DOM对应的飞船
         // 仍然只能通过控制台上登记的mediator来查找
-        var that = this;
-        console.mediators.forEach(function(mediator) {
 
-            that.spacecraft = this.spacecraft || _.find(mediator.receviers, function(spacecraft) {
-                return spacecraft.id === spacecraftId;
-            });
-
+        this.spacecraft = _.find(this.console.mediator.receviers, function(spacecraft) {
+            return spacecraft.id === spacecraftId;
         });
+
 
         // 没找到就别继续了        
         if (!this.spacecraft) throw new Error('找不到这艘飞船');
